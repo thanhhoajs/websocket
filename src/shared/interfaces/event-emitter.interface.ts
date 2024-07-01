@@ -1,4 +1,7 @@
-import type { EventHandler, IThanhHoaWebSocketData } from "@thanhhoa/websocket";
+import type {
+  EventHandler,
+  IThanhHoaWebSocketData,
+} from "@thanhhoajs/websocket";
 import type { ServerWebSocket } from "bun";
 
 /**

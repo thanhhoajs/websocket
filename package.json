@@ -1,5 +1,5 @@
 {
-  "name": "@thanhhoa/websocket",
+  "name": "@thanhhoajs/websocket",
   "version": "1.0.0",
   "description": "A powerful WebSocket library built on top of Bun's native WebSocket implementation",
   "module": "src/index.ts",

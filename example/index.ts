@@ -1,4 +1,4 @@
-import { ThanhHoaWebSocket } from "@thanhhoa/websocket";
+import { ThanhHoaWebSocket } from "@thanhhoajs/websocket";
 
 const wss = new ThanhHoaWebSocket({
   port: 3001,

@@ -4,7 +4,7 @@ import {
   type ThanhHoaWebSocketOptions,
   type IWebSocketRouteHandler,
   type WebSocketMiddleware,
-} from "@thanhhoa/websocket";
+} from "@thanhhoajs/websocket";
 import type { Server, ServerWebSocket, WebSocketServeOptions } from "bun";
 
 /**

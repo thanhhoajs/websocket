@@ -24,9 +24,8 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
 
-
     "paths": {
-      "@thanhhoa/websocket": ["./src"]
+      "@thanhhoajs/websocket": ["./src"]
     }
   }
 }

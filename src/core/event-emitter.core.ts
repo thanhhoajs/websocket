@@ -2,7 +2,7 @@ import type {
   EventHandler,
   IEventEmitter,
   IThanhHoaWebSocketData,
-} from "@thanhhoa/websocket";
+} from "@thanhhoajs/websocket";
 import type { ServerWebSocket } from "bun";
 
 /**

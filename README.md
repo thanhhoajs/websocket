@@ -1,6 +1,6 @@
-# @thanhhoa/websocket
+# @thanhhoajs/websocket
 
-@thanhhoa/websocket is a powerful WebSocket library built on top of Bun's native WebSocket implementation. It provides an easy-to-use API for creating WebSocket servers with advanced features such as routing, event handling, and pub/sub functionality.
+@thanhhoajs/websocket is a powerful WebSocket library built on top of Bun's native WebSocket implementation. It provides an easy-to-use API for creating WebSocket servers with advanced features such as routing, event handling, and pub/sub functionality.
 
 ## Features
 
@@ -14,14 +14,14 @@
 ## Installation
 
 ```bash
-bun add @thanhhoa/websocket
+bun add @thanhhoajs/websocket
 ```
 
 ## Quick Start
 Here's a simple example to get you started:
 
 ```ts
-import { ThanhHoaWebSocket } from "@thanhhoa/websocket";
+import { ThanhHoaWebSocket } from "@thanhhoajs/websocket";
 
 const wsServer = new ThanhHoaWebSocket({ port: 3000 });
 

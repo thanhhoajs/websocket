@@ -1,4 +1,4 @@
-import type { IThanhHoaWebSocketData } from "@thanhhoa/websocket";
+import type { IThanhHoaWebSocketData } from "@thanhhoajs/websocket";
 import type { ServerWebSocket } from "bun";
 
 /**
