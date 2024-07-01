@@ -1,0 +1,49 @@
+{
+  "name": "@thanhhoa/websocket",
+  "version": "1.0.0",
+  "description": "A powerful WebSocket library built on top of Bun's native WebSocket implementation",
+  "module": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "bun test",
+    "example": "bun run example/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "keywords": [
+    "thanhhoa",
+    "thanhhoajs",
+    "websocket",
+    "bun",
+    "realtime",
+    "server",
+    "pubsub",
+    "typescript"
+  ],
+  "author": "Nguyen Nhu Khanh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thanhhoajs/websocket.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thanhhoajs/websocket/issues"
+  },
+  "homepage": "https://github.com/thanhhoajs/websocket#readme",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier": "^3.3.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
