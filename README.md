@@ -117,8 +117,8 @@ Time to send and receive 100000 messages: 687.35ms
 
 ### Interpretation
 
-- The library can establish 100 WebSocket connections in just 32.33ms, demonstrating fast connection handling.
-- It can process 100,000 messages (send and receive) in 689.13ms, showing high throughput capabilities.
+- The library can establish 100 WebSocket connections in just 31.94ms, demonstrating fast connection handling.
+- It can process 100,000 messages (send and receive) in 687.35ms, showing high throughput capabilities.
 
 ## License
 
