@@ -57,39 +57,31 @@ export class ThanhHoaWebSocket extends EventEmitter {
   ): Promise<Response | undefined> {
     try {
       const url = new URL(req.url);
-      let routeHandler = this.routes.get(url.pathname);
+      const pathname = url.pathname === '/' ? '' : url.pathname;
+      const routeHandler = this.routes.get(pathname);
 
-      if (!routeHandler && (url.pathname === '/' || url.pathname === '')) {
-        routeHandler = this.routes.get('');
+      if (!routeHandler) {
+        return new Response('Not Found', { status: 404 });
       }
 
-      if (routeHandler) {
-        if (routeHandler.handleHeaders) {
-          const headersValid = await routeHandler.handleHeaders(req.headers);
-          if (!headersValid) {
-            return new Response('Unauthorized', { status: 401 });
-          }
+      if (routeHandler.handleHeaders) {
+        const headersValid = await routeHandler.handleHeaders(req.headers);
+        if (!headersValid) {
+          return new Response('Unauthorized', { status: 401 });
         }
-
-        const data: IThanhHoaWebSocketData = {
-          routeHandler,
-          path: url.pathname,
-        };
-
-        // Extract query parameters
-        if (url.search) {
-          const query: Record<string, string> = {};
-          url.searchParams.forEach((value, key) => {
-            query[key] = value;
-          });
-          data.query = query;
-        }
-
-        const upgraded = server.upgrade<IThanhHoaWebSocketData>(req, { data });
-        if (upgraded) return;
       }
 
-      return new Response('Not Found', { status: 404 });
+      const data: IThanhHoaWebSocketData = {
+        routeHandler,
+        path: pathname,
+        query: url.search ? Object.fromEntries(url.searchParams) : undefined,
+      };
+
+      if (server.upgrade(req, { data })) {
+        return;
+      }
+
+      return new Response('Upgrade failed', { status: 500 });
     } catch (error) {
       console.error('Error during WebSocket upgrade:', error);
       return new Response('Internal Server Error', { status: 500 });
@@ -101,34 +93,29 @@ export class ThanhHoaWebSocket extends EventEmitter {
    * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
    * @returns {Promise<void>}
    */
-  private async handleOpen(
-    ws: ServerWebSocket<IThanhHoaWebSocketData>,
-  ): Promise<void> {
-    let index = 0;
-    const runMiddleware = async () => {
-      if (index < this.middlewares.length) {
-        await this.middlewares[index++](ws, runMiddleware);
-      } else {
-        const { routeHandler, path, query } = ws.data;
-        routeHandler.onOpen?.(ws, query);
-        this.emit('open', { path, remoteAddress: ws.remoteAddress, query }, ws);
-      }
-    };
-    await runMiddleware();
+  private handleOpen(ws: ServerWebSocket<IThanhHoaWebSocketData>): void {
+    const { routeHandler, path, query } = ws.data;
+    for (let i = 0; i < this.middlewares.length; i++) {
+      this.middlewares[i](ws, () => {});
+    }
+    routeHandler.onOpen?.(ws, query);
+    this.emit('open', { path, remoteAddress: ws.remoteAddress, query }, ws);
   }
 
   /**
    * Handles incoming messages on a WebSocket connection
    * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string | Buffer} message - The received message
+   * @param {string | Buffer } message - The received message
    */
   private handleMessage(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     message: string | Buffer,
   ): void {
     const { routeHandler, path } = ws.data;
-    routeHandler.onMessage?.(ws, message);
-    this.emit('message', { path, message }, ws);
+    ws.cork(() => {
+      routeHandler.onMessage?.(ws, message);
+      this.emit('message', { path, message }, ws);
+    });
   }
 
   /**
@@ -224,12 +211,15 @@ export class ThanhHoaWebSocket extends EventEmitter {
 
   /**
    * Broadcasts a message to all connected clients
-   * @param {string | Uint8Array} message - The message to broadcast
+   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to broadcast
    * @param {boolean} [compress] - Whether to compress the message
    * @example
    * ws.broadcast("Hello everyone!");
    */
-  broadcast(message: string | Uint8Array, compress?: boolean): void {
+  broadcast(
+    message: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer,
+    compress?: boolean,
+  ): void {
     this.server?.publish('broadcast', message, compress);
   }
 
@@ -259,14 +249,14 @@ export class ThanhHoaWebSocket extends EventEmitter {
   /**
    * Publishes a message to a topic
    * @param {string} topic - The topic to publish to
-   * @param {string | Uint8Array} message - The message to publish
+   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to publish
    * @param {boolean} [compress] - Whether to compress the message
    * @example
    * ws.publish("news-updates", "Breaking news!");
    */
   publish(
     topic: string,
-    message: string | Uint8Array,
+    message: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer,
     compress?: boolean,
   ): void {
     this.server?.publish(topic, message, compress);
@@ -288,7 +278,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
   /**
    * Sends a message to a specific client
    * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string | Uint8Array} message - The message to send
+   * @param {string | Bun.BufferSource} message - The message to send
    * @param {boolean} [compress] - Whether to compress the message
    * @returns {number} The number of bytes sent
    * @example
@@ -296,7 +286,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
    */
   send(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
-    message: string | Uint8Array,
+    message: string | Bun.BufferSource,
     compress?: boolean,
   ): number {
     return ws.send(message, compress);
