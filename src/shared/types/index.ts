@@ -1,9 +1,9 @@
-import type { IThanhHoaWebSocketData } from "@thanhhoajs/websocket";
+import type { IThanhHoaWebSocketData } from '@thanhhoajs/websocket';
 import type {
   ServerWebSocket,
   WebSocketHandler,
   WebSocketServeOptions,
-} from "bun";
+} from 'bun';
 
 /**
  * Type definition for an event handler function.
@@ -19,7 +19,7 @@ export type EventHandler<T = any> = (
  * Extends WebSocketServeOptions but omits 'fetch' and 'websocket' properties.
  */
 export type ThanhHoaWebSocketOptions = Partial<
-  Omit<WebSocketServeOptions<IThanhHoaWebSocketData>, "fetch" | "websocket">
+  Omit<WebSocketServeOptions<IThanhHoaWebSocketData>, 'fetch' | 'websocket'>
 > & {
   /**
    * Optional partial WebSocketHandler for custom WebSocket behavior.

@@ -1,4 +1,4 @@
-import type { IWebSocketRouteHandler } from "@thanhhoajs/websocket";
+import type { IWebSocketRouteHandler } from '@thanhhoajs/websocket';
 
 /**
  * Defines the interface for custom Thanh Hoa WebSocket data.
@@ -13,4 +13,9 @@ export interface IThanhHoaWebSocketData {
    * The path of the WebSocket route.
    */
   path: string;
+
+  /**
+   * The query parameters of the WebSocket route.
+   */
+  query?: Record<string, string>;
 }

@@ -2,8 +2,8 @@ import type {
   EventHandler,
   IEventEmitter,
   IThanhHoaWebSocketData,
-} from "@thanhhoajs/websocket";
-import type { ServerWebSocket } from "bun";
+} from '@thanhhoajs/websocket';
+import type { ServerWebSocket } from 'bun';
 
 /**
  * EventEmitter class implements the IEventEmitter interface

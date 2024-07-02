@@ -1,8 +1,8 @@
 import type {
   EventHandler,
   IThanhHoaWebSocketData,
-} from "@thanhhoajs/websocket";
-import type { ServerWebSocket } from "bun";
+} from '@thanhhoajs/websocket';
+import type { ServerWebSocket } from 'bun';
 
 /**
  * Interface for a basic event emitter.

@@ -1,15 +1,20 @@
+<p align="center">
+  <img src="https://drive.google.com/uc?export=view&id=1_M5tYoaKfXpqsOAPQl3WVWs9u5NWrG76" alt="ThanhHoa Logo" width="300"/>
+</p>
+
 # @thanhhoajs/websocket
 
-@thanhhoajs/websocket is a powerful WebSocket library built on top of Bun's native WebSocket implementation. It provides an easy-to-use API for creating WebSocket servers with advanced features such as routing, event handling, and pub/sub functionality.
+@thanhhoajs/websocket is a powerful WebSocket library built on top of Bun's native WebSocket implementation.
 
 ## Features
 
-- Easy-to-use API for creating WebSocket servers
-- Route-based WebSocket handling
-- Built-in event emitter for custom events
-- Support for WebSocket subscriptions and publishing
-- Middleware-like headers handling
-- Fully typed with TypeScript
+- Automatic WebSocket upgrade handling
+- Routing support
+- Middleware
+- Publish/Subscribe
+- Message compression
+- Backpressure handling
+- Full TypeScript support
 
 ## Installation
 
@@ -17,37 +22,104 @@
 bun add @thanhhoajs/websocket
 ```
 
-## Quick Start
-Here's a simple example to get you started:
+## Basic Usage
 
-```ts
-import { ThanhHoaWebSocket } from "@thanhhoajs/websocket";
+```typescript
+import { ThanhHoaWebSocket } from '@thanhhoajs/websocket';
 
-const wsServer = new ThanhHoaWebSocket({ port: 3000 });
+const ws = new ThanhHoaWebSocket({ port: 3000 });
 
-wsServer.addRoute("/chat", {
-  onOpen: (ws) => {
-    console.log("New connection");
-    ws.send("Welcome to the chat!");
-  },
-  onMessage: (ws, message) => {
-    console.log("Received:", message);
-    ws.send(`You said: ${message}`);
-  },
-  onClose: (ws, code, reason) => {
-    console.log(`Connection closed: ${code} - ${reason}`);
+ws.addRoute('/chat', {
+  onOpen: (socket) => console.log('New connection'),
+  onMessage: (socket, message) => console.log('Received:', message),
+});
+
+ws.listen();
+```
+
+## API
+
+### Initialization
+
+```typescript
+const ws = new ThanhHoaWebSocket(options: ThanhHoaWebSocketOptions);
+```
+
+### Adding a route
+
+```typescript
+ws.addRoute(path: string, handler: IWebSocketRouteHandler): void;
+```
+
+### Adding middleware
+
+```typescript
+ws.use(middleware: WebSocketMiddleware): void;
+```
+
+### Sending a message
+
+```typescript
+ws.send(ws: ServerWebSocket<IThanhHoaWebSocketData>, message: string | Uint8Array, compress?: boolean): number;
+```
+
+### Broadcasting
+
+```typescript
+ws.broadcast(message: string | Uint8Array, compress?: boolean): void;
+```
+
+### Publish/Subscribe
+
+```typescript
+ws.subscribe(ws: ServerWebSocket<IThanhHoaWebSocketData>, topic: string): void;
+ws.publish(topic: string, message: string | Uint8Array, compress?: boolean): void;
+```
+
+## Example
+
+```typescript
+import { ThanhHoaWebSocket } from '@thanhhoajs/websocket';
+
+const ws = new ThanhHoaWebSocket({ port: 3000 });
+
+ws.use(async (socket, next) => {
+  console.log('New connection from', socket.remoteAddress);
+  await next();
+});
+
+ws.addRoute('/chat', {
+  onOpen: (socket) => console.log('New connection'),
+  onMessage: (socket, message) => {
+    console.log('Received:', message);
+    ws.broadcast(`User said: ${message}`);
   },
 });
 
-wsServer.listen();
+ws.listen();
+console.log(`Server is listening at http://localhost:${ws.port}`);
 ```
-## Events
-The ThanhHoaWebSocket class extends EventEmitter, allowing you to listen for various events:
 
-- 'open': Emitted when a new WebSocket connection is established.
-- 'message': Emitted when a message is received.
-- 'close': Emitted when a WebSocket connection is closed.
-- 'drain': Emitted when the WebSocket's write buffer becomes empty.
+## Benchmark
+
+We conducted a benchmark to test the performance of ThanhHoaWebSocket. Here are the results:
+
+```
+Time to connect 100 WebSockets: 31.94ms
+Time to send and receive 100000 messages: 687.35ms
+```
+
+### Benchmark Details
+
+- **Connections**: 100 WebSocket connections
+- **Messages**: 1000 messages per connection (100,000 total)
+- **Environment**: [R7 8845H, 32GB 7500MHz, AMD Radeon 780M]
+
+### Interpretation
+
+- The library can establish 100 WebSocket connections in just 32.33ms, demonstrating fast connection handling.
+- It can process 100,000 messages (send and receive) in 689.13ms, showing high throughput capabilities.
 
 ## License
-[MIT License](https://github.com/thanhhoajs/websocket?tab=MIT-1-ov-file/)
+
+[MIT License](https://github.com/thanhhoajs/websocket?tab=MIT-1-ov-file)

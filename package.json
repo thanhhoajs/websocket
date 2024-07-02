@@ -1,21 +1,17 @@
 {
   "name": "@thanhhoajs/websocket",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A powerful WebSocket library built on top of Bun's native WebSocket implementation",
-  "module": "src/index.ts",
-  "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
+  "author": "Nguyen Nhu Khanh",
+  "license": "MIT",
+  "homepage": "https://github.com/thanhhoajs/websocket#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thanhhoajs/websocket.git"
   },
-  "types": "src/index.ts",
-  "scripts": {
-    "format": "prettier --write \"src/**/*.ts\"",
-    "test": "bun test",
-    "example": "bun run example/index.ts"
+  "bugs": {
+    "url": "https://github.com/thanhhoajs/websocket/issues"
   },
-  "files": [
-    "src"
-  ],
   "keywords": [
     "thanhhoa",
     "thanhhoajs",
@@ -26,16 +22,21 @@
     "pubsub",
     "typescript"
   ],
-  "author": "Nguyen Nhu Khanh",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/thanhhoajs/websocket.git"
+  "type": "module",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
   },
-  "bugs": {
-    "url": "https://github.com/thanhhoajs/websocket/issues"
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"example/**/*.ts\" \"benchmark/**/*.ts\"",
+    "test": "bun test thanh-hoa-web-socket.test.ts",
+    "example": "bun run example/index.ts",
+    "benchmark": "bun run benchmark/index.ts"
   },
-  "homepage": "https://github.com/thanhhoajs/websocket#readme",
   "devDependencies": {
     "@types/bun": "latest",
     "prettier": "^3.3.2"

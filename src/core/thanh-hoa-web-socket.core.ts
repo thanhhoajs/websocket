@@ -4,8 +4,8 @@ import {
   type ThanhHoaWebSocketOptions,
   type IWebSocketRouteHandler,
   type WebSocketMiddleware,
-} from "@thanhhoajs/websocket";
-import type { Server, ServerWebSocket, WebSocketServeOptions } from "bun";
+} from '@thanhhoajs/websocket';
+import type { Server, ServerWebSocket, WebSocketServeOptions } from 'bun';
 
 /**
  * ThanhHoaWebSocket class extends EventEmitter to provide WebSocket functionality
@@ -55,24 +55,45 @@ export class ThanhHoaWebSocket extends EventEmitter {
     req: Request,
     server: Server,
   ): Promise<Response | undefined> {
-    const url = new URL(req.url);
-    const routeHandler = this.routes.get(url.pathname);
+    try {
+      const url = new URL(req.url);
+      let routeHandler = this.routes.get(url.pathname);
 
-    if (routeHandler) {
-      if (routeHandler.handleHeaders) {
-        const headersValid = await routeHandler.handleHeaders(req.headers);
-        if (!headersValid) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+      if (!routeHandler && (url.pathname === '/' || url.pathname === '')) {
+        routeHandler = this.routes.get('');
       }
 
-      const upgraded = server.upgrade<IThanhHoaWebSocketData>(req, {
-        data: { routeHandler, path: url.pathname },
-      });
-      if (upgraded) return;
-    }
+      if (routeHandler) {
+        if (routeHandler.handleHeaders) {
+          const headersValid = await routeHandler.handleHeaders(req.headers);
+          if (!headersValid) {
+            return new Response('Unauthorized', { status: 401 });
+          }
+        }
 
-    return new Response("Not Found", { status: 404 });
+        const data: IThanhHoaWebSocketData = {
+          routeHandler,
+          path: url.pathname,
+        };
+
+        // Extract query parameters
+        if (url.search) {
+          const query: Record<string, string> = {};
+          url.searchParams.forEach((value, key) => {
+            query[key] = value;
+          });
+          data.query = query;
+        }
+
+        const upgraded = server.upgrade<IThanhHoaWebSocketData>(req, { data });
+        if (upgraded) return;
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (error) {
+      console.error('Error during WebSocket upgrade:', error);
+      return new Response('Internal Server Error', { status: 500 });
+    }
   }
 
   /**
@@ -88,9 +109,9 @@ export class ThanhHoaWebSocket extends EventEmitter {
       if (index < this.middlewares.length) {
         await this.middlewares[index++](ws, runMiddleware);
       } else {
-        const { routeHandler, path } = ws.data;
-        routeHandler.onOpen?.(ws);
-        this.emit("open", { path, remoteAddress: ws.remoteAddress }, ws);
+        const { routeHandler, path, query } = ws.data;
+        routeHandler.onOpen?.(ws, query);
+        this.emit('open', { path, remoteAddress: ws.remoteAddress, query }, ws);
       }
     };
     await runMiddleware();
@@ -107,7 +128,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
   ): void {
     const { routeHandler, path } = ws.data;
     routeHandler.onMessage?.(ws, message);
-    this.emit("message", { path, message }, ws);
+    this.emit('message', { path, message }, ws);
   }
 
   /**
@@ -123,7 +144,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
   ): void {
     const { routeHandler, path } = ws.data;
     routeHandler.onClose?.(ws, code, reason);
-    this.emit("close", { path, code, reason }, ws);
+    this.emit('close', { path, code, reason }, ws);
   }
 
   /**
@@ -131,7 +152,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
    * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
    */
   private handleDrain(ws: ServerWebSocket<IThanhHoaWebSocketData>): void {
-    this.emit("drain", { path: ws.data.path }, ws);
+    this.emit('drain', { path: ws.data.path }, ws);
   }
 
   /**
@@ -162,11 +183,43 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   /**
+   * Adds multiple route handlers for a specific prefix
+   * @param {string} prefix - The prefix to handle
+   * @param {Record<string, IWebSocketRouteHandler>} routes - The handlers for the routes
+   * @example
+   * ws.addRoutes("/chat", {
+   *   "/users": {
+   *     onOpen: (socket) => console.log("New connection"),
+   *     onMessage: (socket, message) => console.log("Received:", message)
+   *   }
+   * });
+   */
+  addRoutes(prefix: string, routes: Record<string, IWebSocketRouteHandler>) {
+    for (const [path, handler] of Object.entries(routes)) {
+      this.addRoute(`${prefix}${path}`, handler);
+    }
+  }
+
+  /**
    * Removes a route handler for a specific path
    * @param {string} path - The path to remove the handler for
    */
   removeRoute(path: string): void {
     this.routes.delete(path);
+  }
+
+  /**
+   * Removes all route handlers
+   */
+  clearRoutes(): void {
+    this.routes.clear();
+  }
+
+  /**
+   * Removes all middleware
+   */
+  clearMiddleware(): void {
+    this.middlewares = [];
   }
 
   /**
@@ -177,7 +230,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
    * ws.broadcast("Hello everyone!");
    */
   broadcast(message: string | Uint8Array, compress?: boolean): void {
-    this.server?.publish("broadcast", message, compress);
+    this.server?.publish('broadcast', message, compress);
   }
 
   /**
@@ -320,5 +373,17 @@ export class ThanhHoaWebSocket extends EventEmitter {
    */
   get development(): boolean | undefined {
     return this.server?.development;
+  }
+
+  /**
+   * Gets statistics about the WebSocket server
+   * @returns {object} An object containing server statistics
+   */
+  getStats(): object {
+    return {
+      pendingConnections: this.pendingWebSockets,
+      routeCount: this.routes.size,
+      middlewareCount: this.middlewares.length,
+    };
   }
 }

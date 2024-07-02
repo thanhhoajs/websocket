@@ -1,5 +1,5 @@
-import type { IThanhHoaWebSocketData } from "@thanhhoajs/websocket";
-import type { ServerWebSocket } from "bun";
+import type { IThanhHoaWebSocketData } from '@thanhhoajs/websocket';
+import type { ServerWebSocket } from 'bun';
 
 /**
  * Defines the interface for a WebSocket route handler.
@@ -19,6 +19,7 @@ export interface IWebSocketRouteHandler {
    */
   onOpen?: (
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
+    query?: Record<string, string>,
   ) => void | Promise<void>;
 
   /**
