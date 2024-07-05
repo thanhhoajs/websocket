@@ -1,116 +1,87 @@
 import {
   ThanhHoaWebSocket,
   type WebSocketMiddleware,
+  type IWebSocketRouteHandler,
+  type IThanhHoaWebSocketData,
+  RouterHandler,
 } from '@thanhhoajs/websocket';
-import { expect, test, mock } from 'bun:test';
+import { expect, test, mock, spyOn } from 'bun:test';
+import type { Server, ServerWebSocket } from 'bun';
 
 // Initialization and basic configuration
 test('ThanhHoaWebSocket initialization', () => {
   const ws = new ThanhHoaWebSocket({ port: 3002 });
   expect(ws).toBeDefined();
-  expect(ws.port).toBe(undefined);
+  expect(ws.port).toBe(3002);
 });
 
-test('ThanhHoaWebSocket listen and stop', () => {
+test('ThanhHoaWebSocket stop', () => {
   const ws = new ThanhHoaWebSocket({ port: 3003 });
-  const server = ws.listen();
-  expect(server).toBeDefined();
-  expect(ws.port).toBe(3003);
+  const stopSpy = spyOn(ws['server'], 'stop');
 
   ws.stop();
-  expect(ws['server']).toBeNull();
+  expect(stopSpy).toHaveBeenCalled();
 });
 
 test('ThanhHoaWebSocket getters', () => {
   const ws = new ThanhHoaWebSocket({ port: 3004 });
-  ws.listen();
 
   expect(ws.hostname).toBeDefined();
   expect(typeof ws.development).toBe('boolean');
+  expect(ws.pendingWebSockets).toBe(0);
 });
 
 // Route management
-test('ThanhHoaWebSocket addRoute and removeRoute', () => {
-  const ws = new ThanhHoaWebSocket();
-  const handler = {
+
+test('ThanhHoaWebSocket group', () => {
+  const ws = new ThanhHoaWebSocket({ port: 3005 });
+  const handler: IWebSocketRouteHandler = {
     onOpen: () => {},
     onMessage: () => {},
     onClose: () => {},
   };
 
-  ws.addRoute('/test', handler);
-  expect(ws['routes'].size).toBe(1);
-  expect(ws['routes'].get('/test')).toBe(handler);
+  const routerHandler = new RouterHandler();
 
-  ws.removeRoute('/test');
-  expect(ws['routes'].size).toBe(0);
-});
+  routerHandler.route('test', handler);
+  routerHandler.route('users', handler);
 
-test('ThanhHoaWebSocket addRoutes', () => {
-  const ws = new ThanhHoaWebSocket();
-  const handlers = {
-    '/users': {
-      onOpen: () => {},
-      onMessage: () => {},
-    },
-    '/chat': {
-      onOpen: () => {},
-      onClose: () => {},
-    },
-  };
+  ws.group('api', routerHandler);
 
-  ws.addRoutes('/api', handlers);
   expect(ws['routes'].size).toBe(2);
-  expect(ws['routes'].has('/api/users')).toBe(true);
-  expect(ws['routes'].has('/api/chat')).toBe(true);
-});
-
-test('ThanhHoaWebSocket clearRoutes', () => {
-  const ws = new ThanhHoaWebSocket();
-  ws.addRoute('/test1', {});
-  ws.addRoute('/test2', {});
-  expect(ws['routes'].size).toBe(2);
-
-  ws.clearRoutes();
-  expect(ws['routes'].size).toBe(0);
+  expect(ws['routes'].has('api/test')).toBe(true);
+  expect(ws['routes'].has('api/users')).toBe(true);
 });
 
 // Middleware
 test('ThanhHoaWebSocket middleware', () => {
-  const ws = new ThanhHoaWebSocket();
-  const middleware: WebSocketMiddleware = async (socket, next) => {
-    next();
-  };
+  const ws = new ThanhHoaWebSocket({ port: 3006 });
+  const middleware: WebSocketMiddleware = async (socket) => {};
 
   ws.use(middleware);
-  expect(ws['middlewares'].length).toBe(1);
-
-  ws.clearMiddleware();
-  expect(ws['middlewares'].length).toBe(0);
+  expect(ws['globalMiddlewares'].size).toBe(1);
 });
 
-// Connection handling
+// Handle the connection
 test('ThanhHoaWebSocket handleUpgrade error handling', async () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3007 });
   const mockReq = new Request('http://localhost:3000/error');
   const mockServer = {
-    upgrade: () => {
-      throw new Error('Upgrade failed');
-    },
-  } as any;
+    upgrade: () => false,
+  } as unknown as Server;
 
   const response = await ws['handleUpgrade'](mockReq, mockServer);
   expect(response).toBeInstanceOf(Response);
-  expect((response as Response).status).toBe(404);
+  expect(response?.status).toBe(404);
 });
 
 // Manage channels and send messages
 test('ThanhHoaWebSocket subscribe and unsubscribe', () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3008 });
   const mockSocket = {
     subscribe: mock(() => {}),
     unsubscribe: mock(() => {}),
-  } as any;
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
   ws.subscribe(mockSocket, 'test-topic');
   expect(mockSocket.subscribe).toHaveBeenCalledWith('test-topic');
@@ -120,44 +91,38 @@ test('ThanhHoaWebSocket subscribe and unsubscribe', () => {
 });
 
 test('ThanhHoaWebSocket isSubscribed', () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3009 });
   const mockSocket = {
     isSubscribed: mock((topic: string) => topic === 'test-topic'),
-  } as any;
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
   expect(ws.isSubscribed(mockSocket, 'test-topic')).toBe(true);
   expect(ws.isSubscribed(mockSocket, 'other-topic')).toBe(false);
 });
 
 test('ThanhHoaWebSocket broadcast', () => {
-  const ws = new ThanhHoaWebSocket();
-  ws.listen();
-
-  const publishMock = mock(() => {});
-  ws['server'] = { publish: publishMock } as any;
+  const ws = new ThanhHoaWebSocket({ port: 3010 });
+  const publishSpy = spyOn(ws['server'], 'publish');
 
   ws.broadcast('Hello');
-  expect(publishMock).toHaveBeenCalledWith('broadcast', 'Hello', undefined);
+  expect(publishSpy).toHaveBeenCalledWith('broadcast', 'Hello', undefined);
 });
 
 test('ThanhHoaWebSocket publish', () => {
-  const ws = new ThanhHoaWebSocket({
-    port: 3005,
-  });
-  ws.listen();
+  const ws = new ThanhHoaWebSocket({ port: 3011 });
+  const mockSocket = {
+    publish: mock(() => {}),
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
-  const publishMock = mock(() => {});
-  ws['server'] = { publish: publishMock } as any;
-
-  ws.publish('test-topic', 'Hello', true);
-  expect(publishMock).toHaveBeenCalledWith('test-topic', 'Hello', true);
+  ws.publish(mockSocket, 'test-topic', 'Hello', true);
+  expect(mockSocket.publish).toHaveBeenCalledWith('test-topic', 'Hello', true);
 });
 
 test('ThanhHoaWebSocket send', () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3012 });
   const mockSocket = {
     send: mock(() => 5),
-  } as any;
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
   const result = ws.send(mockSocket, 'Hello', true);
   expect(mockSocket.send).toHaveBeenCalledWith('Hello', true);
@@ -166,20 +131,20 @@ test('ThanhHoaWebSocket send', () => {
 
 // Other methods
 test('ThanhHoaWebSocket close', () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3013 });
   const mockSocket = {
     close: mock(() => {}),
-  } as any;
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
   ws.close(mockSocket, 1000, 'Test close');
   expect(mockSocket.close).toHaveBeenCalledWith(1000, 'Test close');
 });
 
 test('ThanhHoaWebSocket cork', () => {
-  const ws = new ThanhHoaWebSocket();
+  const ws = new ThanhHoaWebSocket({ port: 3014 });
   const mockSocket = {
     cork: mock((callback: () => any) => callback()),
-  } as any;
+  } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
   const result = ws.cork(mockSocket, () => 'test');
   expect(mockSocket.cork).toHaveBeenCalled();
@@ -187,14 +152,23 @@ test('ThanhHoaWebSocket cork', () => {
 });
 
 test('ThanhHoaWebSocket getStats', () => {
-  const ws = new ThanhHoaWebSocket();
-  ws.addRoute('/test', {});
+  const ws = new ThanhHoaWebSocket({ port: 3015 });
+
+  // Create a mock RouterHandler
+  const mockRouterHandler = new RouterHandler();
+  const mockHandler: IWebSocketRouteHandler = {
+    onOpen: () => {},
+    onMessage: () => {},
+    onClose: () => {},
+  };
+  mockRouterHandler.route('/test', mockHandler);
+
+  ws.group('', mockRouterHandler);
   ws.use(() => {});
 
   const stats = ws.getStats();
   expect(stats).toEqual({
     pendingConnections: 0,
     routeCount: 1,
-    middlewareCount: 1,
   });
 });
