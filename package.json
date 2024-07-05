@@ -1,8 +1,8 @@
 {
   "name": "@thanhhoajs/websocket",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A powerful WebSocket library built on top of Bun's native WebSocket implementation",
-  "author": "Nguyen Nhu Khanh",
+  "author": "Nguyen Nhu Khanh <kwalker.nnk@mail.com>",
   "license": "MIT",
   "homepage": "https://github.com/thanhhoajs/websocket#readme",
   "repository": {
@@ -20,6 +20,7 @@
     "realtime",
     "server",
     "pubsub",
+    "broadcast",
     "typescript"
   ],
   "type": "module",
@@ -34,7 +35,7 @@
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"example/**/*.ts\" \"benchmark/**/*.ts\"",
     "test": "bun test thanh-hoa-web-socket.test.ts",
-    "example": "bun run example/index.ts",
+    "example": "bun run example/main.ts",
     "benchmark": "bun run benchmark/index.ts"
   },
   "devDependencies": {

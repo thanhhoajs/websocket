@@ -6,8 +6,7 @@ import type {
 } from 'bun';
 
 /**
- * Type definition for an event handler function.
- * @template T - The type of data passed to the event handler.
+ * Type for event handler function.
  */
 export type EventHandler<T = any> = (
   data: T,
@@ -15,25 +14,17 @@ export type EventHandler<T = any> = (
 ) => void;
 
 /**
- * Custom options type for Thanh Hoa WebSocket configuration.
- * Extends WebSocketServeOptions but omits 'fetch' and 'websocket' properties.
+ * Options for ThanhHoaWebSocket.
  */
 export type ThanhHoaWebSocketOptions = Partial<
   Omit<WebSocketServeOptions<IThanhHoaWebSocketData>, 'fetch' | 'websocket'>
 > & {
-  /**
-   * Optional partial WebSocketHandler for custom WebSocket behavior.
-   */
   websocket?: Partial<WebSocketHandler<IThanhHoaWebSocketData>>;
 };
 
 /**
- * Type definition for a WebSocket middleware function.
- * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection.
- * @param {() => void} next - The function to call to pass control to the next middleware.
- * @returns {void | Promise<void>}
+ * Type for WebSocket middleware.
  */
 export type WebSocketMiddleware = (
   ws: ServerWebSocket<IThanhHoaWebSocketData>,
-  next: () => void,
 ) => void | Promise<void>;

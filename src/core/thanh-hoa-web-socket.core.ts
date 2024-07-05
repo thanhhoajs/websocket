@@ -2,32 +2,25 @@ import {
   EventEmitter,
   type IThanhHoaWebSocketData,
   type ThanhHoaWebSocketOptions,
-  type IWebSocketRouteHandler,
   type WebSocketMiddleware,
+  Route,
+  RouterHandler,
 } from '@thanhhoajs/websocket';
 import type { Server, ServerWebSocket, WebSocketServeOptions } from 'bun';
 
 /**
- * ThanhHoaWebSocket class extends EventEmitter to provide WebSocket functionality
+ * Main class for managing the WebSocket server.
+ * @extends EventEmitter
  */
 export class ThanhHoaWebSocket extends EventEmitter {
   private options: WebSocketServeOptions<IThanhHoaWebSocketData>;
-  private server: Server | null = null;
-  private routes: Map<string, IWebSocketRouteHandler> = new Map();
-  private middlewares: WebSocketMiddleware[] = [];
+  private server: Server;
+  private routes: Map<string, Route> = new Map();
+  private globalMiddlewares: Set<WebSocketMiddleware> = new Set();
 
   /**
-   * Initializes a new instance of ThanhHoaWebSocket
-   * @param {ThanhHoaWebSocketOptions} options - Configuration options for the WebSocket server
-   * @example
-   * const ws = new ThanhHoaWebSocket({
-   *   port: 3001,
-   *   websocket: {
-   *     perMessageDeflate: true,
-   *     idleTimeout: 60,
-   *     maxPayloadLength: 1024 * 1024,
-   *   }
-   * });
+   * Creates a new instance of ThanhHoaWebSocket.
+   * @param {ThanhHoaWebSocketOptions} [options={}] - Options for the WebSocket server.
    */
   constructor(options: ThanhHoaWebSocketOptions = {}) {
     super();
@@ -39,205 +32,164 @@ export class ThanhHoaWebSocket extends EventEmitter {
         open: this.handleOpen.bind(this),
         close: this.handleClose.bind(this),
         drain: this.handleDrain.bind(this),
-        perMessageDeflate: options.websocket?.perMessageDeflate ?? true,
         ...options.websocket,
       },
     };
+    this.server = Bun.serve(this.options);
   }
 
   /**
-   * Handles WebSocket upgrade requests
-   * @param {Request} req - The incoming HTTP request
-   * @param {Server} server - The Bun server instance
-   * @returns {Promise<Response | undefined>} A response if the upgrade fails, undefined if successful
+   * Adds a global middleware.
+   * @param {WebSocketMiddleware} middleware - The middleware to add.
    */
+  use(middleware: WebSocketMiddleware): void {
+    this.globalMiddlewares.add(middleware);
+  }
+
+  private async applyMiddlewares(
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
+    middlewares: Set<WebSocketMiddleware>,
+  ): Promise<boolean> {
+    for (const middleware of middlewares) {
+      await middleware(ws);
+    }
+    return true;
+  }
+
   private async handleUpgrade(
     req: Request,
     server: Server,
   ): Promise<Response | undefined> {
-    try {
-      const url = new URL(req.url);
-      const pathname = url.pathname === '/' ? '' : url.pathname;
-      const routeHandler = this.routes.get(pathname);
+    const url = new URL(req.url);
+    const pathname = url.pathname.replace(/^\/+|\/+$/g, '');
+    const matchedRoute = this.routes.get(pathname);
 
-      if (!routeHandler) {
-        return new Response('Not Found', { status: 404 });
-      }
-
-      if (routeHandler.handleHeaders) {
-        const headersValid = await routeHandler.handleHeaders(req.headers);
-        if (!headersValid) {
-          return new Response('Unauthorized', { status: 401 });
-        }
-      }
-
-      const data: IThanhHoaWebSocketData = {
-        routeHandler,
-        path: pathname,
-        query: url.search ? Object.fromEntries(url.searchParams) : undefined,
-      };
-
-      if (server.upgrade(req, { data })) {
-        return;
-      }
-
-      return new Response('Upgrade failed', { status: 500 });
-    } catch (error) {
-      console.error('Error during WebSocket upgrade:', error);
-      return new Response('Internal Server Error', { status: 500 });
+    if (!matchedRoute) {
+      return new Response('Not Found', { status: 404 });
     }
+
+    if (matchedRoute.handleHeaders) {
+      const headersValid = await matchedRoute.handleHeaders(req.headers);
+      if (!headersValid) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+    }
+
+    const data: IThanhHoaWebSocketData = {
+      routeHandler: matchedRoute,
+      path: pathname,
+      query: Object.fromEntries(url.searchParams),
+      params: {},
+      headers: req.headers,
+      custom: {},
+    };
+
+    return server.upgrade(req, { data })
+      ? undefined
+      : new Response('Upgrade failed', { status: 500 });
   }
 
-  /**
-   * Handles the opening of a WebSocket connection
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @returns {Promise<void>}
-   */
-  private handleOpen(ws: ServerWebSocket<IThanhHoaWebSocketData>): void {
-    const { routeHandler, path, query } = ws.data;
-    for (let i = 0; i < this.middlewares.length; i++) {
-      this.middlewares[i](ws, () => {});
+  private async handleOpen(
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
+  ): Promise<void> {
+    const { routeHandler, query, params } = ws.data;
+    if (
+      await this.applyMiddlewares(
+        ws,
+        new Set([
+          ...this.globalMiddlewares,
+          ...(routeHandler.middlewares || []),
+        ]),
+      )
+    ) {
+      await routeHandler.onOpen?.(ws, query, params);
     }
-    routeHandler.onOpen?.(ws, query);
-    this.emit('open', { path, remoteAddress: ws.remoteAddress, query }, ws);
+    this.emit('open', ws.data, ws);
   }
 
-  /**
-   * Handles incoming messages on a WebSocket connection
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string | Buffer } message - The received message
-   */
-  private handleMessage(
+  private async handleMessage(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     message: string | Buffer,
-  ): void {
-    const { routeHandler, path } = ws.data;
-    ws.cork(() => {
-      routeHandler.onMessage?.(ws, message);
-      this.emit('message', { path, message }, ws);
-    });
+  ): Promise<void> {
+    const { routeHandler } = ws.data;
+    if (
+      await this.applyMiddlewares(
+        ws,
+        new Set([
+          ...this.globalMiddlewares,
+          ...(routeHandler.middlewares || []),
+        ]),
+      )
+    ) {
+      await routeHandler.onMessage?.(ws, message);
+    }
+    this.emit('message', { ...ws.data, message }, ws);
   }
 
-  /**
-   * Handles the closing of a WebSocket connection
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {number} code - The close code
-   * @param {string} reason - The reason for closing
-   */
-  private handleClose(
+  private async handleClose(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     code: number,
     reason: string,
-  ): void {
-    const { routeHandler, path } = ws.data;
-    routeHandler.onClose?.(ws, code, reason);
-    this.emit('close', { path, code, reason }, ws);
+  ): Promise<void> {
+    const { routeHandler } = ws.data;
+    await routeHandler.onClose?.(ws, code, reason);
+    this.emit('close', { ...ws.data, code, reason }, ws);
   }
 
-  /**
-   * Handles the drain event of a WebSocket connection
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   */
   private handleDrain(ws: ServerWebSocket<IThanhHoaWebSocketData>): void {
-    this.emit('drain', { path: ws.data.path }, ws);
+    this.emit('drain', ws.data, ws);
   }
 
   /**
-   * Adds a middleware to the WebSocket server
-   * @param {WebSocketMiddleware} middleware - The middleware function to add
-   * @example
-   * ws.use(async (socket, next) => {
-   *   console.log("New connection from", socket.remoteAddress);
-   *   await next();
-   * });
+   * Groups routes with a common prefix.
+   * @param {string} prefix - The prefix for the group of routes.
+   * @param {...(WebSocketMiddleware | RouterHandler)} args - Middlewares and RouterHandler.
    */
-  use(middleware: WebSocketMiddleware): void {
-    this.middlewares.push(middleware);
-  }
+  group(
+    prefix: string,
+    ...args: (WebSocketMiddleware | RouterHandler)[]
+  ): void {
+    const handler = args.pop() as RouterHandler;
+    const groupMiddlewares = new Set(args as WebSocketMiddleware[]);
 
-  /**
-   * Adds a route handler for a specific path
-   * @param {string} path - The path to handle
-   * @param {IWebSocketRouteHandler} handler - The handler for the route
-   * @example
-   * ws.addRoute("/chat", {
-   *   onOpen: (socket) => console.log("New connection"),
-   *   onMessage: (socket, message) => console.log("Received:", message)
-   * });
-   */
-  addRoute(path: string, handler: IWebSocketRouteHandler): void {
-    this.routes.set(path, handler);
-  }
-
-  /**
-   * Adds multiple route handlers for a specific prefix
-   * @param {string} prefix - The prefix to handle
-   * @param {Record<string, IWebSocketRouteHandler>} routes - The handlers for the routes
-   * @example
-   * ws.addRoutes("/chat", {
-   *   "/users": {
-   *     onOpen: (socket) => console.log("New connection"),
-   *     onMessage: (socket, message) => console.log("Received:", message)
-   *   }
-   * });
-   */
-  addRoutes(prefix: string, routes: Record<string, IWebSocketRouteHandler>) {
-    for (const [path, handler] of Object.entries(routes)) {
-      this.addRoute(`${prefix}${path}`, handler);
+    for (const [routePath, route] of handler.getRoutes()) {
+      const fullPath = prefix ? `${prefix}/${routePath}` : routePath;
+      const allMiddlewares = new Set([
+        ...groupMiddlewares,
+        ...route.middlewares,
+      ]);
+      this.routes.set(
+        fullPath.replace(/^\/+|\/+$/g, ''),
+        new Route(fullPath, route.handler, allMiddlewares),
+      );
     }
   }
 
   /**
-   * Removes a route handler for a specific path
-   * @param {string} path - The path to remove the handler for
-   */
-  removeRoute(path: string): void {
-    this.routes.delete(path);
-  }
-
-  /**
-   * Removes all route handlers
-   */
-  clearRoutes(): void {
-    this.routes.clear();
-  }
-
-  /**
-   * Removes all middleware
-   */
-  clearMiddleware(): void {
-    this.middlewares = [];
-  }
-
-  /**
-   * Broadcasts a message to all connected clients
-   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to broadcast
-   * @param {boolean} [compress] - Whether to compress the message
-   * @example
-   * ws.broadcast("Hello everyone!");
+   * Sends a broadcast message to all connections.
+   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to send.
+   * @param {boolean} [compress] - Whether to compress the message.
    */
   broadcast(
     message: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer,
     compress?: boolean,
   ): void {
-    this.server?.publish('broadcast', message, compress);
+    this.server.publish('broadcast', message, compress);
   }
 
   /**
-   * Subscribes a client to a topic
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string} topic - The topic to subscribe to
-   * @example
-   * ws.subscribe(clientSocket, "news-updates");
+   * Subscribes to a topic.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {string} topic - The topic to subscribe to.
    */
   subscribe(ws: ServerWebSocket<IThanhHoaWebSocketData>, topic: string): void {
     ws.subscribe(topic);
   }
 
   /**
-   * Unsubscribes a client from a topic
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string} topic - The topic to unsubscribe from
+   * Unsubscribes from a topic.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {string} topic - The topic to unsubscribe from.
    */
   unsubscribe(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
@@ -247,26 +199,26 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   /**
-   * Publishes a message to a topic
-   * @param {string} topic - The topic to publish to
-   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to publish
-   * @param {boolean} [compress] - Whether to compress the message
-   * @example
-   * ws.publish("news-updates", "Breaking news!");
+   * Publishes a message to a topic.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {string} topic - The topic to publish to.
+   * @param {string | Bun.BufferSource} message - The message to publish.
+   * @param {boolean} [compress] - Whether to compress the message.
    */
   publish(
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
     topic: string,
-    message: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer,
+    message: string | Bun.BufferSource,
     compress?: boolean,
   ): void {
-    this.server?.publish(topic, message, compress);
+    ws.publish(topic, message, compress);
   }
 
   /**
-   * Checks if a client is subscribed to a topic
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string} topic - The topic to check
-   * @returns {boolean} True if subscribed, false otherwise
+   * Checks if a client is subscribed to a topic.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {string} topic - The topic to check.
+   * @returns {boolean} - Whether the client is subscribed to the topic.
    */
   isSubscribed(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
@@ -276,13 +228,11 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   /**
-   * Sends a message to a specific client
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {string | Bun.BufferSource} message - The message to send
-   * @param {boolean} [compress] - Whether to compress the message
-   * @returns {number} The number of bytes sent
-   * @example
-   * const bytesSent = ws.send(clientSocket, "Hello ThanhHoa!");
+   * Sends a message to a client.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {string | Bun.BufferSource} message - The message to send.
+   * @param {boolean} [compress] - Whether to compress the message.
+   * @returns {number} - The number of bytes sent.
    */
   send(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
@@ -293,20 +243,21 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   /**
-   * Executes a callback in a corked context for batched sends
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection
-   * @param {Function} callback - The callback to execute
-   * @returns {T} The result of the callback
+   * Cork the WebSocket connection.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {() => T} callback - The callback to execute.
+   * @returns {T} - The result of the callback.
    */
   cork<T>(ws: ServerWebSocket<IThanhHoaWebSocketData>, callback: () => T): T {
     return ws.cork(callback);
   }
 
   /**
-   * Closes a WebSocket connection
-   * @param {ServerWebSocket<IThanhHoaWebSocketData>} ws - The WebSocket connection to close
-   * @param {number} [code] - The close code
-   * @param {string} [reason] - The reason for closing
+   * Close the WebSocket connection.
+   * @param {ServerWebSocket} ws - The WebSocket connection.
+   * @param {number} [code] - The close code to send.
+   * @param {string} [reason] - The close reason to send.
+   * @returns {void}
    */
   close(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
@@ -317,63 +268,53 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   /**
-   * Starts the WebSocket server
-   * @returns {Server} The Bun server instance
-   */
-  listen(): Server {
-    this.server = Bun.serve(this.options);
-    return this.server;
-  }
-
-  /**
-   * Stops the WebSocket server
+   * Stops the WebSocket server.
+   * @return {void} No return value.
    */
   stop(): void {
-    this.server?.stop();
-    this.server = null;
+    this.server.stop();
   }
 
   /**
-   * Gets the hostname of the server
-   * @returns {string | undefined} The hostname
+   * Returns the hostname of the server.
+   * @return {string} The hostname of the server.
    */
-  get hostname(): string | undefined {
-    return this.server?.hostname;
+  get hostname(): string {
+    return this.server.hostname;
   }
 
   /**
-   * Gets the port of the server
-   * @returns {number | undefined} The port
+   * Returns the port number of the server.
+   * @return {number} The port number of the server.
    */
-  get port(): number | undefined {
-    return this.server?.port;
+  get port(): number {
+    return this.server.port;
   }
 
   /**
-   * Gets the number of pending WebSocket connections
-   * @returns {number} The number of pending connections
+   * Returns the number of pending WebSocket connections.
+   * @return {number} The number of pending WebSocket connections.
    */
   get pendingWebSockets(): number {
-    return this.server?.pendingWebSockets || 0;
+    return this.server.pendingWebSockets;
   }
 
   /**
-   * Gets whether the server is in development mode
-   * @returns {boolean | undefined} True if in development mode, false otherwise
+   * Returns a boolean indicating whether the server is in development mode.
+   * @return {boolean} True if the server is in development mode, false otherwise.
    */
-  get development(): boolean | undefined {
-    return this.server?.development;
+  get development(): boolean {
+    return this.server.development;
   }
 
   /**
-   * Gets statistics about the WebSocket server
-   * @returns {object} An object containing server statistics
+   * Returns statistics about the WebSocket server.
+   * @return {object} An object containing the number of pending connections and the route count.
    */
   getStats(): object {
     return {
       pendingConnections: this.pendingWebSockets,
       routeCount: this.routes.size,
-      middlewareCount: this.middlewares.length,
     };
   }
 }
