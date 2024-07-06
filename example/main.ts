@@ -16,8 +16,8 @@ donationModule(ws);
 notificationModule(ws);
 
 // Handle the connection event and close the global connection
-ws.on('open', ({ path, remoteAddress }, socket) => {
-  console.log(`New connection from ${remoteAddress} to ${path}`);
+ws.on('open', ({ path }, socket) => {
+  console.log(`New connection from ${socket.remoteAddress} to ${path}`);
 });
 
 ws.on('close', ({ path, code, reason }, socket) => {

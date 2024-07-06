@@ -62,7 +62,17 @@ export class ThanhHoaWebSocket extends EventEmitter {
   ): Promise<Response | undefined> {
     const url = new URL(req.url);
     const pathname = url.pathname.replace(/^\/+|\/+$/g, '');
-    const matchedRoute = this.routes.get(pathname);
+
+    let matchedRoute: Route | undefined;
+    let params: Record<string, string> = {};
+    for (const [routePath, route] of this.routes) {
+      const match = this.matchRoute(pathname, routePath);
+      if (match) {
+        matchedRoute = route;
+        params = match;
+        break;
+      }
+    }
 
     if (!matchedRoute) {
       return new Response('Not Found', { status: 404 });
@@ -79,7 +89,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
       routeHandler: matchedRoute,
       path: pathname,
       query: Object.fromEntries(url.searchParams),
-      params: {},
+      params,
       headers: req.headers,
       custom: {},
     };
@@ -87,6 +97,31 @@ export class ThanhHoaWebSocket extends EventEmitter {
     return server.upgrade(req, { data })
       ? undefined
       : new Response('Upgrade failed', { status: 500 });
+  }
+
+  private matchRoute(
+    pathname: string,
+    routePath: string,
+  ): Record<string, string> | null {
+    const pathnameSegments = pathname.split('/');
+    const routeSegments = routePath.split('/');
+
+    if (pathnameSegments.length !== routeSegments.length) {
+      return null;
+    }
+
+    const params: Record<string, string> = {};
+
+    for (let i = 0; i < routeSegments.length; i++) {
+      if (routeSegments[i].startsWith(':')) {
+        const paramName = routeSegments[i].slice(1);
+        params[paramName] = pathnameSegments[i];
+      } else if (routeSegments[i] !== pathnameSegments[i]) {
+        return null;
+      }
+    }
+
+    return params;
   }
 
   private async handleOpen(
