@@ -1,8 +1,8 @@
 import { ThanhHoaWebSocket, RouterHandler } from '@thanhhoajs/websocket';
 import { heapStats } from 'bun:jsc';
 
-const NUM_CONNECTIONS = 16;
-const NUM_MESSAGES = 62500;
+const NUM_CONNECTIONS = 16; // 16 connections
+const NUM_MESSAGES = 62500; // 62500 messages per connection
 
 let results = '';
 let received = 0;

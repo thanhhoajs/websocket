@@ -1,8 +1,8 @@
 {
   "name": "@thanhhoajs/websocket",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A powerful WebSocket library built on top of Bun's native WebSocket implementation",
-  "author": "Nguyen Nhu Khanh <kwalker.nnk@mail.com>",
+  "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/thanhhoajs/websocket#readme",
   "repository": {

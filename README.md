@@ -213,12 +213,12 @@ Time to send and receive 1,000,000 messages: 5849.82ms
 
 ### Interpretation
 
-- The library can establish 100 WebSocket connections in just 10.21ms, demonstrating fast connection handling.
+- The library can establish 16 WebSocket connections in just 10.21ms, demonstrating fast connection handling.
 - It can process 1,000,000 messages (send and receive) in 5849.82ms, showing high throughput capabilities.
 
 ## Author
 
-Nguyen Nhu Khanh <kwalker.nnk@mail.com>
+Nguyen Nhu Khanh <kwalker.nnk@gmail.com>
 
 ## License
 
