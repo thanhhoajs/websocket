@@ -24,4 +24,7 @@ ws.on('close', ({ path, code, reason }, socket) => {
   console.log(`Connection closed: ${path}, code: ${code}, reason: ${reason}`);
 });
 
+// Logger
+ws.logger();
+
 console.log(`WebSocket server is running on ${ws.hostname}:${ws.port}`);

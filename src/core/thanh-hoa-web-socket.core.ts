@@ -1,3 +1,4 @@
+import { Logger } from '@thanhhoajs/logger';
 import {
   EventEmitter,
   type IThanhHoaWebSocketData,
@@ -351,5 +352,56 @@ export class ThanhHoaWebSocket extends EventEmitter {
       pendingConnections: this.pendingWebSockets,
       routeCount: this.routes.size,
     };
+  }
+
+  /**
+   * Prints the server information to the console.
+   */
+  logger(): void {
+    const logger = Logger.getInstance('THANHHOA WEBSOCKET');
+
+    logger.success('ThanhHoaWebSocket Server Information');
+    logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // Server Details
+    logger.info('📡 Server Details:');
+    logger.info(`   🔗 Listening on: ${this.hostname}:${this.port}`);
+    logger.info(
+      `   🛠️ Development mode: ${this.development ? 'Enabled' : 'Disabled'}`,
+    );
+    logger.info('');
+
+    // Defined Routes
+    logger.info('🛣️ Defined Routes:');
+    for (const [path, route] of this.routes) {
+      logger.info(`   📍 ${path}`);
+    }
+    logger.info('');
+
+    // Global Middlewares
+    logger.info('🔗 Global Middlewares:');
+    logger.info(`   📊 Count: ${this.globalMiddlewares.size}`);
+    logger.info('');
+
+    // Server Options
+    logger.info('⚙️ Server Options:');
+    logger.info(`   🔢 Port: ${this.options.port}`);
+    if (this.options.websocket) {
+      logger.info('   🔌 WebSocket handlers:');
+      logger.info(
+        `      📨 message: ${typeof this.options.websocket.message === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+      );
+      logger.info(
+        `      🔓 open: ${typeof this.options.websocket.open === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+      );
+      logger.info(
+        `      🔒 close: ${typeof this.options.websocket.close === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+      );
+      logger.info(
+        `      🚰 drain: ${typeof this.options.websocket.drain === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+      );
+    }
+
+    logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 }

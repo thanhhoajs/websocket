@@ -80,6 +80,9 @@ router.route('chat', {
 
 ws.group('', router);
 
+// Logger
+ws.logger();
+
 console.log(`WebSocket server is running on ws://localhost:${ws.port}`);
 ```
 
