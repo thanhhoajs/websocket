@@ -361,7 +361,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
     const logger = Logger.get('THANHHOA WEBSOCKET');
     const space = ' ';
     const indentTwoSpaces = space.repeat(2);
-    const indentThreeSpaces = space.repeat(4);
+    const indentFourSpaces = space.repeat(4);
 
     logger.success('ThanhHoaWebSocket Server Information');
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -394,16 +394,16 @@ export class ThanhHoaWebSocket extends EventEmitter {
     if (this.options.websocket) {
       logger.info(`${indentTwoSpaces}🔌 WebSocket handlers:`);
       logger.info(
-        `${indentThreeSpaces}📨 message: ${typeof this.options.websocket.message === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentFourSpaces}📨 message: ${typeof this.options.websocket.message === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `${indentThreeSpaces}🔓 open: ${typeof this.options.websocket.open === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentFourSpaces}🔓 open: ${typeof this.options.websocket.open === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `${indentThreeSpaces}🔒 close: ${typeof this.options.websocket.close === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentFourSpaces}🔒 close: ${typeof this.options.websocket.close === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `${indentThreeSpaces}🚰 drain: ${typeof this.options.websocket.drain === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentFourSpaces}🚰 drain: ${typeof this.options.websocket.drain === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
     }
 
