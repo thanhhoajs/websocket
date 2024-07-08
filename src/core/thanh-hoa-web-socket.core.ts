@@ -358,47 +358,52 @@ export class ThanhHoaWebSocket extends EventEmitter {
    * Prints the server information to the console.
    */
   logger(): void {
-    const logger = Logger.getInstance('THANHHOA WEBSOCKET');
+    const logger = Logger.get('THANHHOA WEBSOCKET');
+    const space = ' ';
+    const indentTwoSpaces = space.repeat(2);
+    const indentThreeSpaces = space.repeat(4);
 
     logger.success('ThanhHoaWebSocket Server Information');
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Server Details
     logger.info('📡 Server Details:');
-    logger.info(`   🔗 Listening on: ${this.hostname}:${this.port}`);
     logger.info(
-      `   🛠️ Development mode: ${this.development ? 'Enabled' : 'Disabled'}`,
+      `${indentTwoSpaces}🔗 Listening on: ${this.hostname}:${this.port}`,
+    );
+    logger.info(
+      `${indentTwoSpaces}🛠️ Development mode: ${this.development ? 'Enabled' : 'Disabled'}`,
     );
     logger.info('');
 
     // Defined Routes
     logger.info('🛣️ Defined Routes:');
     for (const [path, route] of this.routes) {
-      logger.info(`   📍 ${path}`);
+      logger.info(`${indentTwoSpaces}📍 ${path}`);
     }
     logger.info('');
 
     // Global Middlewares
     logger.info('🔗 Global Middlewares:');
-    logger.info(`   📊 Count: ${this.globalMiddlewares.size}`);
+    logger.info(`${indentTwoSpaces}📊 Count: ${this.globalMiddlewares.size}`);
     logger.info('');
 
     // Server Options
     logger.info('⚙️ Server Options:');
-    logger.info(`   🔢 Port: ${this.options.port}`);
+    logger.info(`${indentTwoSpaces}🔢 Port: ${this.options.port}`);
     if (this.options.websocket) {
-      logger.info('   🔌 WebSocket handlers:');
+      logger.info(`${indentTwoSpaces}🔌 WebSocket handlers:`);
       logger.info(
-        `      📨 message: ${typeof this.options.websocket.message === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentThreeSpaces}📨 message: ${typeof this.options.websocket.message === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `      🔓 open: ${typeof this.options.websocket.open === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentThreeSpaces}🔓 open: ${typeof this.options.websocket.open === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `      🔒 close: ${typeof this.options.websocket.close === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentThreeSpaces}🔒 close: ${typeof this.options.websocket.close === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
       logger.info(
-        `      🚰 drain: ${typeof this.options.websocket.drain === 'function' ? '✅ Defined' : '❌ Not defined'}`,
+        `${indentThreeSpaces}🚰 drain: ${typeof this.options.websocket.drain === 'function' ? '✅ Defined' : '❌ Not defined'}`,
       );
     }
 
