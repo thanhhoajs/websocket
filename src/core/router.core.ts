@@ -1,8 +1,6 @@
-import type { ServerWebSocket } from 'bun';
 import type {
   IWebSocketRouteHandler,
   WebSocketMiddleware,
-  IThanhHoaWebSocketData,
 } from '@thanhhoajs/websocket';
 
 /**
@@ -21,7 +19,6 @@ export class Route implements IWebSocketRouteHandler {
     public handler: IWebSocketRouteHandler,
     public middlewares: Set<WebSocketMiddleware> = new Set(),
   ) {
-    this.handleHeaders = handler.handleHeaders;
     this.onOpen = handler.onOpen;
     this.onMessage = handler.onMessage;
     this.onClose = handler.onClose;
@@ -31,19 +28,7 @@ export class Route implements IWebSocketRouteHandler {
     ]);
   }
 
-  handleHeaders?: (headers: Headers) => boolean | Promise<boolean>;
-  onOpen?: (
-    ws: ServerWebSocket<IThanhHoaWebSocketData>,
-    query?: Record<string, string>,
-    params?: Record<string, string>,
-  ) => void | Promise<void>;
-  onMessage?: (
-    ws: ServerWebSocket<IThanhHoaWebSocketData>,
-    message: string | Buffer,
-  ) => void | Promise<void>;
-  onClose?: (
-    ws: ServerWebSocket<IThanhHoaWebSocketData>,
-    code: number,
-    reason: string,
-  ) => void | Promise<void>;
+  onOpen?: IWebSocketRouteHandler['onOpen'];
+  onMessage?: IWebSocketRouteHandler['onMessage'];
+  onClose?: IWebSocketRouteHandler['onClose'];
 }

@@ -42,17 +42,4 @@ export class EventEmitter implements IEventEmitter {
       eventListeners.forEach((listener) => listener(data, ws));
     }
   }
-
-  /**
-   * Unregister a listener for an event.
-   * @param {string} event - The name of the event.
-   * @param {EventHandler<T>} listener - The event handler function to remove.
-   * @template T
-   */
-  off<T = any>(event: string, listener: EventHandler<T>): void {
-    const eventListeners = this.listeners.get(event);
-    if (eventListeners) {
-      eventListeners.delete(listener as EventHandler);
-    }
-  }
 }

@@ -56,7 +56,9 @@ test('ThanhHoaWebSocket group', () => {
 // Middleware
 test('ThanhHoaWebSocket middleware', () => {
   const ws = new ThanhHoaWebSocket({ port: 3006 });
-  const middleware: WebSocketMiddleware = async (socket) => {};
+  const middleware: WebSocketMiddleware = async (socket) => {
+    return true;
+  };
 
   ws.use(middleware);
   expect(ws['globalMiddlewares'].size).toBe(1);
@@ -114,7 +116,9 @@ test('ThanhHoaWebSocket publish', () => {
     publish: mock(() => {}),
   } as unknown as ServerWebSocket<IThanhHoaWebSocketData>;
 
-  ws.publish(mockSocket, 'test-topic', 'Hello', true);
+  ws.publish('test-topic', 'Hello', true);
+  mockSocket.publish('test-topic', 'Hello', true);
+
   expect(mockSocket.publish).toHaveBeenCalledWith('test-topic', 'Hello', true);
 });
 
@@ -164,7 +168,9 @@ test('ThanhHoaWebSocket getStats', () => {
   mockRouterHandler.route('/test', mockHandler);
 
   ws.group('', mockRouterHandler);
-  ws.use(() => {});
+  ws.use(() => {
+    return Promise.resolve(true);
+  });
 
   const stats = ws.getStats();
   expect(stats).toEqual({

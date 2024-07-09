@@ -5,7 +5,7 @@ export const authMiddleware: WebSocketMiddleware = async (ws) => {
     const authHeader = ws.data.headers.get('Authorization');
     if (!authHeader) {
       ws.close(1008, 'Authentication required');
-      return;
+      return false;
     }
 
     // Process token from header
@@ -16,8 +16,10 @@ export const authMiddleware: WebSocketMiddleware = async (ws) => {
 
     // If authentication is successful, save user information into custom data
     ws.data.custom!.user = { id: '123', username: 'username' };
+    return true;
   } catch (error) {
     console.error('Authentication failed:', error);
     ws.close(1008, 'Authentication failed');
+    return false;
   }
 };
