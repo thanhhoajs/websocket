@@ -24,7 +24,9 @@ export type ThanhHoaWebSocketOptions = Partial<
 
 /**
  * Type for WebSocket middleware.
+ * @param ws - The WebSocket instance.
+ * @returns {Promise<boolean>} - A promise that resolves to a boolean indicating whether the middleware should continue.
  */
 export type WebSocketMiddleware = (
   ws: ServerWebSocket<IThanhHoaWebSocketData>,
-) => void | Promise<void>;
+) => Promise<boolean>;

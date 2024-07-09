@@ -15,6 +15,4 @@ export interface IEventEmitter {
     data: T,
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
   ): void;
-
-  off<T = any>(event: string, listener: EventHandler<T>): void;
 }

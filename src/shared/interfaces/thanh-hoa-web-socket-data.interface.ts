@@ -10,4 +10,5 @@ export interface IThanhHoaWebSocketData {
   params?: Record<string, string>;
   headers: Headers;
   custom?: Record<string, any>;
+  clientId: string;
 }

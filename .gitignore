@@ -175,3 +175,7 @@ dist
 .DS_Store
 
 dist
+
+thanhhoa_message_queue.db
+thanhhoa_message_queue.db-shm
+thanhhoa_message_queue.db-wal

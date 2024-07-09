@@ -13,7 +13,9 @@ export const rateLimitMiddleware = (
     { count: number; lastReset: number }
   >();
 
-  return (ws: ServerWebSocket<IThanhHoaWebSocketData>) => {
+  return async (
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
+  ): Promise<boolean> => {
     const userId =
       (ws.data.custom?.user as { id: string } | undefined)?.id ||
       ws.remoteAddress;
@@ -32,9 +34,10 @@ export const rateLimitMiddleware = (
 
     if (userCount.count >= limit) {
       ws.send('Rate limit exceeded. Please wait before sending more messages.');
-      return;
+      return false;
     }
 
     userCount.count++;
+    return true;
   };
 };

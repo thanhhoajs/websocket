@@ -110,18 +110,15 @@ const authMiddleware: WebSocketMiddleware = async (
   const token = ws.data.headers.get('Authorization');
   if (!token) {
     ws.close(1008, 'Unauthorized');
-    return;
+    return false;
   }
   // Perform token validation here
   ws.data.custom = { userId: 'user123' }; // Attach custom data
+  return true;
 };
 
 // Define route handlers
 const chatHandler = {
-  handleHeaders: (headers: Headers) => {
-    // Validate headers before upgrading to WebSocket
-    return headers.has('X-Chat-Version');
-  },
   onOpen: (
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     query?: Record<string, string>,
@@ -204,8 +201,8 @@ Manages WebSocket routes.
 ThanhHoaWebSocket is built for high performance. In our benchmarks:
 
 ```
-Time to connect 16 WebSockets: 10.21ms
-Time to send and receive 1,000,000 messages: 5849.82ms
+Time to connect 16 WebSockets: 9.73ms
+Time to send and receive 1,000,000 messages: 5990.51ms
 ```
 
 ### Benchmark Details
@@ -216,8 +213,8 @@ Time to send and receive 1,000,000 messages: 5849.82ms
 
 ### Interpretation
 
-- The library can establish 16 WebSocket connections in just 10.21ms, demonstrating fast connection handling.
-- It can process 1,000,000 messages (send and receive) in 5849.82ms, showing high throughput capabilities.
+- The library can establish 16 WebSocket connections in just 9.73ms, demonstrating fast connection handling.
+- It can process 1,000,000 messages (send and receive) in 5990.51ms, showing high throughput capabilities.
 
 ## Author
 

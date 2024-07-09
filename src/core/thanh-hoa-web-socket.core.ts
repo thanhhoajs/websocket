@@ -6,11 +6,14 @@ import {
   type WebSocketMiddleware,
   Route,
   RouterHandler,
+  MessageQueue,
 } from '@thanhhoajs/websocket';
 import type { Server, ServerWebSocket, WebSocketServeOptions } from 'bun';
 
+const logger = Logger.get('THANHHOA WEBSOCKET');
+
 /**
- * Main class for managing the WebSocket server.
+ * Managing the WebSocket server.
  * @extends EventEmitter
  */
 export class ThanhHoaWebSocket extends EventEmitter {
@@ -18,6 +21,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
   private server: Server;
   private routes: Map<string, Route> = new Map();
   private globalMiddlewares: Set<WebSocketMiddleware> = new Set();
+  private messageQueue: MessageQueue;
 
   /**
    * Creates a new instance of ThanhHoaWebSocket.
@@ -37,6 +41,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
       },
     };
     this.server = Bun.serve(this.options);
+    this.messageQueue = new MessageQueue();
   }
 
   /**
@@ -52,7 +57,9 @@ export class ThanhHoaWebSocket extends EventEmitter {
     middlewares: Set<WebSocketMiddleware>,
   ): Promise<boolean> {
     for (const middleware of middlewares) {
-      await middleware(ws);
+      if (!(await middleware(ws))) {
+        return false;
+      }
     }
     return true;
   }
@@ -79,12 +86,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
       return new Response('Not Found', { status: 404 });
     }
 
-    if (matchedRoute.handleHeaders) {
-      const headersValid = await matchedRoute.handleHeaders(req.headers);
-      if (!headersValid) {
-        return new Response('Unauthorized', { status: 401 });
-      }
-    }
+    const clientId = crypto.randomUUID();
 
     const data: IThanhHoaWebSocketData = {
       routeHandler: matchedRoute,
@@ -93,6 +95,7 @@ export class ThanhHoaWebSocket extends EventEmitter {
       params,
       headers: req.headers,
       custom: {},
+      clientId,
     };
 
     return server.upgrade(req, { data })
@@ -173,7 +176,31 @@ export class ThanhHoaWebSocket extends EventEmitter {
   }
 
   private handleDrain(ws: ServerWebSocket<IThanhHoaWebSocketData>): void {
+    this.sendQueuedMessages(ws);
     this.emit('drain', ws.data, ws);
+  }
+
+  private sendQueuedMessages(
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
+  ): void {
+    while (true) {
+      const queuedMessage = this.messageQueue.dequeue(ws.data.clientId);
+      if (!queuedMessage) break;
+
+      const result = ws.send(queuedMessage.message, queuedMessage.compress);
+      if (result === -1) break;
+      if (result === 0) {
+        this.handleConnectionIssue(ws);
+        break;
+      }
+    }
+  }
+
+  private handleConnectionIssue(
+    ws: ServerWebSocket<IThanhHoaWebSocketData>,
+  ): void {
+    logger.error(`Connection issue for client ${ws.data.clientId}`);
+    ws.close(1011, 'Connection errors!');
   }
 
   /**
@@ -236,18 +263,16 @@ export class ThanhHoaWebSocket extends EventEmitter {
 
   /**
    * Publishes a message to a topic.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
    * @param {string} topic - The topic to publish to.
    * @param {string | Bun.BufferSource} message - The message to publish.
    * @param {boolean} [compress] - Whether to compress the message.
    */
   publish(
-    ws: ServerWebSocket<IThanhHoaWebSocketData>,
     topic: string,
     message: string | Bun.BufferSource,
     compress?: boolean,
   ): void {
-    ws.publish(topic, message, compress);
+    this.server.publish(topic, message, compress);
   }
 
   /**
@@ -275,7 +300,15 @@ export class ThanhHoaWebSocket extends EventEmitter {
     message: string | Bun.BufferSource,
     compress?: boolean,
   ): number {
-    return ws.send(message, compress);
+    const result = ws.send(message, compress);
+    if (result === -1) {
+      this.messageQueue.enqueue(ws.data.clientId, message, !!compress);
+      return -1;
+    } else if (result === 0) {
+      this.handleConnectionIssue(ws);
+      return 0;
+    }
+    return result;
   }
 
   /**
@@ -358,7 +391,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
    * Prints the server information to the console.
    */
   logger(): void {
-    const logger = Logger.get('THANHHOA WEBSOCKET');
     const space = ' ';
     const indentTwoSpaces = space.repeat(2);
     const indentFourSpaces = space.repeat(4);
