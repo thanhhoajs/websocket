@@ -142,6 +142,9 @@ export class ThanhHoaWebSocket extends EventEmitter {
       )
     ) {
       await routeHandler.onOpen?.(ws, query, params);
+    } else {
+      ws.close(1008, 'Unauthorized');
+      return;
     }
     this.emit('open', ws.data, ws);
   }
