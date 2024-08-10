@@ -71,55 +71,36 @@ export class ThanhHoaWebSocket
     const url = new URL(req.url);
     const pathname = url.pathname.replace(/^\/+|\/+$/g, '');
 
-    const { matchedRoute, params } = this.matchRouteAndParams(pathname);
+    let matchedRoute: Route | undefined;
+    let params: Record<string, string> = {};
+    for (const [routePath, route] of this.routes) {
+      const match = this.matchRoute(pathname, routePath);
+      if (match) {
+        matchedRoute = route;
+        params = match;
+        break;
+      }
+    }
 
     if (!matchedRoute) {
       return new Response('Not Found', { status: 404 });
     }
 
     const clientId = crypto.randomUUID();
-    const data: IThanhHoaWebSocketData = this.createWebSocketData(
-      req,
-      pathname,
-      params,
-      matchedRoute,
-      clientId,
-    );
 
-    return server.upgrade(req, { data })
-      ? undefined
-      : new Response('Upgrade failed', { status: 500 });
-  }
-
-  private matchRouteAndParams(pathname: string): {
-    matchedRoute: Route | undefined;
-    params: Record<string, string>;
-  } {
-    for (const [routePath, route] of this.routes) {
-      const match = this.matchRoute(pathname, routePath);
-      if (match) {
-        return { matchedRoute: route, params: match };
-      }
-    }
-    return { matchedRoute: undefined, params: {} };
-  }
-
-  private createWebSocketData(
-    req: Request,
-    pathname: string,
-    params: Record<string, string>,
-    matchedRoute: Route,
-    clientId: string,
-  ): IThanhHoaWebSocketData {
-    return {
+    const data: IThanhHoaWebSocketData = {
       routeHandler: matchedRoute,
       path: pathname,
-      query: Object.fromEntries(new URL(req.url).searchParams),
+      query: Object.fromEntries(url.searchParams),
       params,
       headers: req.headers,
       custom: {},
       clientId,
     };
+
+    return server.upgrade(req, { data })
+      ? undefined
+      : new Response('Upgrade failed', { status: 500 });
   }
 
   private matchRoute(
@@ -205,18 +186,14 @@ export class ThanhHoaWebSocket
   private sendQueuedMessages(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
   ): void {
-    let queuedMessage;
-    while ((queuedMessage = this.messageQueue.dequeue(ws.data.clientId))) {
+    while (true) {
+      const queuedMessage = this.messageQueue.dequeue(ws.data.clientId);
+      if (!queuedMessage) break;
+
       const result = ws.send(queuedMessage.message, queuedMessage.compress);
-      if (result <= 0) {
-        this.messageQueue.enqueue(
-          ws.data.clientId,
-          queuedMessage.message,
-          queuedMessage.compress,
-        );
-        if (result === 0) {
-          this.handleConnectionIssue(ws);
-        }
+      if (result === -1) break;
+      if (result === 0) {
+        this.handleConnectionIssue(ws);
         break;
       }
     }
