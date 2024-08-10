@@ -7,6 +7,7 @@ import {
   Route,
   RouterHandler,
   MessageQueue,
+  type IThanhHoaWebSocket,
 } from '@thanhhoajs/websocket';
 import type { Server, ServerWebSocket, WebSocketServeOptions } from 'bun';
 
@@ -16,7 +17,10 @@ const logger = Logger.get('THANHHOA WEBSOCKET');
  * Managing the WebSocket server.
  * @extends EventEmitter
  */
-export class ThanhHoaWebSocket extends EventEmitter {
+export class ThanhHoaWebSocket
+  extends EventEmitter
+  implements IThanhHoaWebSocket
+{
   private options: WebSocketServeOptions<IThanhHoaWebSocketData>;
   private server: Server;
   private routes: Map<string, Route> = new Map();
@@ -44,10 +48,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     this.messageQueue = new MessageQueue();
   }
 
-  /**
-   * Adds a global middleware.
-   * @param {WebSocketMiddleware} middleware - The middleware to add.
-   */
   use(middleware: WebSocketMiddleware): void {
     this.globalMiddlewares.add(middleware);
   }
@@ -71,36 +71,55 @@ export class ThanhHoaWebSocket extends EventEmitter {
     const url = new URL(req.url);
     const pathname = url.pathname.replace(/^\/+|\/+$/g, '');
 
-    let matchedRoute: Route | undefined;
-    let params: Record<string, string> = {};
-    for (const [routePath, route] of this.routes) {
-      const match = this.matchRoute(pathname, routePath);
-      if (match) {
-        matchedRoute = route;
-        params = match;
-        break;
-      }
-    }
+    const { matchedRoute, params } = this.matchRouteAndParams(pathname);
 
     if (!matchedRoute) {
       return new Response('Not Found', { status: 404 });
     }
 
     const clientId = crypto.randomUUID();
+    const data: IThanhHoaWebSocketData = this.createWebSocketData(
+      req,
+      pathname,
+      params,
+      matchedRoute,
+      clientId,
+    );
 
-    const data: IThanhHoaWebSocketData = {
+    return server.upgrade(req, { data })
+      ? undefined
+      : new Response('Upgrade failed', { status: 500 });
+  }
+
+  private matchRouteAndParams(pathname: string): {
+    matchedRoute: Route | undefined;
+    params: Record<string, string>;
+  } {
+    for (const [routePath, route] of this.routes) {
+      const match = this.matchRoute(pathname, routePath);
+      if (match) {
+        return { matchedRoute: route, params: match };
+      }
+    }
+    return { matchedRoute: undefined, params: {} };
+  }
+
+  private createWebSocketData(
+    req: Request,
+    pathname: string,
+    params: Record<string, string>,
+    matchedRoute: Route,
+    clientId: string,
+  ): IThanhHoaWebSocketData {
+    return {
       routeHandler: matchedRoute,
       path: pathname,
-      query: Object.fromEntries(url.searchParams),
+      query: Object.fromEntries(new URL(req.url).searchParams),
       params,
       headers: req.headers,
       custom: {},
       clientId,
     };
-
-    return server.upgrade(req, { data })
-      ? undefined
-      : new Response('Upgrade failed', { status: 500 });
   }
 
   private matchRoute(
@@ -186,14 +205,18 @@ export class ThanhHoaWebSocket extends EventEmitter {
   private sendQueuedMessages(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
   ): void {
-    while (true) {
-      const queuedMessage = this.messageQueue.dequeue(ws.data.clientId);
-      if (!queuedMessage) break;
-
+    let queuedMessage;
+    while ((queuedMessage = this.messageQueue.dequeue(ws.data.clientId))) {
       const result = ws.send(queuedMessage.message, queuedMessage.compress);
-      if (result === -1) break;
-      if (result === 0) {
-        this.handleConnectionIssue(ws);
+      if (result <= 0) {
+        this.messageQueue.enqueue(
+          ws.data.clientId,
+          queuedMessage.message,
+          queuedMessage.compress,
+        );
+        if (result === 0) {
+          this.handleConnectionIssue(ws);
+        }
         break;
       }
     }
@@ -202,15 +225,12 @@ export class ThanhHoaWebSocket extends EventEmitter {
   private handleConnectionIssue(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
   ): void {
-    logger.error(`Connection issue for client ${ws.data.clientId}`);
+    logger.error(
+      `Connection issue for client ${ws.data.clientId}. Path: ${ws.data.path}`,
+    );
     ws.close(1011, 'Connection errors!');
   }
 
-  /**
-   * Groups routes with a common prefix.
-   * @param {string} prefix - The prefix for the group of routes.
-   * @param {...(WebSocketMiddleware | RouterHandler)} args - Middlewares and RouterHandler.
-   */
   group(
     prefix: string,
     ...args: (WebSocketMiddleware | RouterHandler)[]
@@ -231,11 +251,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     }
   }
 
-  /**
-   * Sends a broadcast message to all connections.
-   * @param {string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer} message - The message to send.
-   * @param {boolean} [compress] - Whether to compress the message.
-   */
   broadcast(
     message: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer,
     compress?: boolean,
@@ -243,20 +258,10 @@ export class ThanhHoaWebSocket extends EventEmitter {
     this.server.publish('broadcast', message, compress);
   }
 
-  /**
-   * Subscribes to a topic.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {string} topic - The topic to subscribe to.
-   */
   subscribe(ws: ServerWebSocket<IThanhHoaWebSocketData>, topic: string): void {
     ws.subscribe(topic);
   }
 
-  /**
-   * Unsubscribes from a topic.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {string} topic - The topic to unsubscribe from.
-   */
   unsubscribe(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     topic: string,
@@ -264,12 +269,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     ws.unsubscribe(topic);
   }
 
-  /**
-   * Publishes a message to a topic.
-   * @param {string} topic - The topic to publish to.
-   * @param {string | Bun.BufferSource} message - The message to publish.
-   * @param {boolean} [compress] - Whether to compress the message.
-   */
   publish(
     topic: string,
     message: string | Bun.BufferSource,
@@ -278,12 +277,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     this.server.publish(topic, message, compress);
   }
 
-  /**
-   * Checks if a client is subscribed to a topic.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {string} topic - The topic to check.
-   * @returns {boolean} - Whether the client is subscribed to the topic.
-   */
   isSubscribed(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     topic: string,
@@ -291,13 +284,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     return ws.isSubscribed(topic);
   }
 
-  /**
-   * Sends a message to a client.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {string | Bun.BufferSource} message - The message to send.
-   * @param {boolean} [compress] - Whether to compress the message.
-   * @returns {number} - The number of bytes sent.
-   */
   send(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     message: string | Bun.BufferSource,
@@ -314,23 +300,10 @@ export class ThanhHoaWebSocket extends EventEmitter {
     return result;
   }
 
-  /**
-   * Cork the WebSocket connection.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {() => T} callback - The callback to execute.
-   * @returns {T} - The result of the callback.
-   */
   cork<T>(ws: ServerWebSocket<IThanhHoaWebSocketData>, callback: () => T): T {
     return ws.cork(callback);
   }
 
-  /**
-   * Close the WebSocket connection.
-   * @param {ServerWebSocket} ws - The WebSocket connection.
-   * @param {number} [code] - The close code to send.
-   * @param {string} [reason] - The close reason to send.
-   * @returns {void}
-   */
   close(
     ws: ServerWebSocket<IThanhHoaWebSocketData>,
     code?: number,
@@ -339,50 +312,26 @@ export class ThanhHoaWebSocket extends EventEmitter {
     ws.close(code, reason);
   }
 
-  /**
-   * Stops the WebSocket server.
-   * @return {void} No return value.
-   */
   stop(): void {
     this.server.stop();
   }
 
-  /**
-   * Returns the hostname of the server.
-   * @return {string} The hostname of the server.
-   */
   get hostname(): string {
     return this.server.hostname;
   }
 
-  /**
-   * Returns the port number of the server.
-   * @return {number} The port number of the server.
-   */
   get port(): number {
     return this.server.port;
   }
 
-  /**
-   * Returns the number of pending WebSocket connections.
-   * @return {number} The number of pending WebSocket connections.
-   */
   get pendingWebSockets(): number {
     return this.server.pendingWebSockets;
   }
 
-  /**
-   * Returns a boolean indicating whether the server is in development mode.
-   * @return {boolean} True if the server is in development mode, false otherwise.
-   */
   get development(): boolean {
     return this.server.development;
   }
 
-  /**
-   * Returns statistics about the WebSocket server.
-   * @return {object} An object containing the number of pending connections and the route count.
-   */
   getStats(): object {
     return {
       pendingConnections: this.pendingWebSockets,
@@ -390,9 +339,6 @@ export class ThanhHoaWebSocket extends EventEmitter {
     };
   }
 
-  /**
-   * Prints the server information to the console.
-   */
   logger(): void {
     const space = ' ';
     const indentTwoSpaces = space.repeat(2);
